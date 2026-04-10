@@ -10,9 +10,22 @@ import org.jspecify.annotations.Nullable;
 import static java.util.Objects.requireNonNull;
 
 /**
+ * A {@link ConvertedSignal} implementation backed by a {@link ValueSignal}.
+ * <p>
+ * This class wires a model signal to a presentation signal through a
+ * {@link Converter}. When the presentation value is set via
+ * {@link #setPresentation(Object)}, the converter attempts to produce a model
+ * value. If conversion succeeds the model is updated through the provided write
+ * callback; if it fails the {@link #invalid()} signal becomes {@code true} and
+ * {@link #errorMessage()} carries the converter's error message.
+ * <p>
+ * The {@link #presentation()} signal is computed: while the conversion is valid
+ * it derives its value from the model signal via the converter; while invalid it
+ * returns the raw presentation value that caused the error, so the UI can keep
+ * displaying what the user typed.
  *
- * @param <M>
- * @param <P>
+ * @param <M> the model (domain) type
+ * @param <P> the presentation (UI) type
  */
 @NullMarked
 public class ConvertedValueSignal<M extends @Nullable Object, P extends @Nullable Object> implements ConvertedSignal<M, P> {
@@ -26,10 +39,13 @@ public class ConvertedValueSignal<M extends @Nullable Object, P extends @Nullabl
     private P typedPresentationValue;
 
     /**
+     * Creates a new converted value signal.
      *
-     * @param modelSignal
-     * @param writeCallback
-     * @param converter
+     * @param modelSignal   the source signal providing the model value
+     * @param writeCallback a callback invoked with the converted model value
+     *                      when a presentation-to-model conversion succeeds
+     * @param converter     the converter used to translate between the
+     *                      presentation and model types
      */
     public ConvertedValueSignal(Signal<M> modelSignal, SerializableConsumer<M> writeCallback,
                                 Converter<P, M> converter) {
@@ -66,8 +82,15 @@ public class ConvertedValueSignal<M extends @Nullable Object, P extends @Nullabl
     }
 
     /**
+     * Sets the presentation value and attempts to convert it to the model type.
+     * <p>
+     * If the conversion succeeds, the write callback is invoked with the
+     * resulting model value and the {@link #invalid()} signal is set to
+     * {@code false}. If the conversion fails, the invalid signal is set to
+     * {@code true} and the {@link #errorMessage()} signal is updated with
+     * the converter's error message.
      *
-     * @param presentation
+     * @param presentation the new presentation value to convert and apply
      */
     public void setPresentation(P presentation) {
         this.typedPresentationValue = presentation;
