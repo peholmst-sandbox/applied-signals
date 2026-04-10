@@ -6,12 +6,15 @@ import com.vaadin.flow.data.converter.Converter;
 import com.vaadin.flow.signals.local.ValueSignal;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@DisplayName("ConvertedValueSignal")
 public class ConvertedValueSignalTest {
 
     public record Email(String value) {
@@ -52,37 +55,246 @@ public class ConvertedValueSignalTest {
         convertedSignal = new ConvertedValueSignal<>(modelSignal, modelSignal::set, new EmailConverter());
     }
 
-    @Test
-    void initial_state_is_empty() {
-        assertThat(convertedSignal.errorMessage().peek()).isNull();
-        assertThat(convertedSignal.invalid().peek()).isFalse();
-        assertThat(convertedSignal.model().peek()).isNull();
-        assertThat(convertedSignal.presentation().peek()).isEmpty();
+    @Nested
+    @DisplayName("before any presentation value is set")
+    class InitialState {
+
+        @Test
+        @DisplayName("model signal contains the initial value")
+        void model_signal_contains_initial_value() {
+            assertThat(convertedSignal.model().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("presentation signal returns the converter's representation of the initial model")
+        void presentation_signal_returns_converted_initial_model() {
+            assertThat(convertedSignal.presentation().peek()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("invalid signal is false")
+        void invalid_signal_is_false() {
+            assertThat(convertedSignal.invalid().peek()).isFalse();
+        }
+
+        @Test
+        @DisplayName("error message signal is null")
+        void error_message_signal_is_null() {
+            assertThat(convertedSignal.errorMessage().peek()).isNull();
+        }
     }
 
-    @Test
-    void valid_presentation_converts_to_valid_model() {
-        convertedSignal.setPresentation("foo@bar.com");
-        assertThat(convertedSignal.errorMessage().peek()).isNull();
-        assertThat(convertedSignal.invalid().peek()).isFalse();
-        assertThat(convertedSignal.model().peek()).isEqualTo(new Email("foo@bar.com"));
-        assertThat(convertedSignal.presentation().peek()).isEqualTo("foo@bar.com");
+    @Nested
+    @DisplayName("when a valid presentation value is set")
+    class ValidConversion {
+
+        @BeforeEach
+        void setValidPresentation() {
+            convertedSignal.setPresentation("foo@bar.com");
+        }
+
+        @Test
+        @DisplayName("model is updated with the converted value")
+        void model_is_updated_with_converted_value() {
+            assertThat(convertedSignal.model().peek()).isEqualTo(new Email("foo@bar.com"));
+        }
+
+        @Test
+        @DisplayName("presentation signal returns the same value")
+        void presentation_signal_returns_the_set_value() {
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("foo@bar.com");
+        }
+
+        @Test
+        @DisplayName("invalid signal is false")
+        void invalid_signal_is_false() {
+            assertThat(convertedSignal.invalid().peek()).isFalse();
+        }
+
+        @Test
+        @DisplayName("error message signal is null")
+        void error_message_signal_is_null() {
+            assertThat(convertedSignal.errorMessage().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("a second valid value updates the model again")
+        void second_valid_value_updates_model() {
+            convertedSignal.setPresentation("other@example.org");
+            assertThat(convertedSignal.model().peek()).isEqualTo(new Email("other@example.org"));
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("other@example.org");
+        }
     }
 
-    @Test
-    void invalid_presentation_sets_the_error_message_and_leaves_model_signal_unchanged() {
-        convertedSignal.setPresentation("invalid@@");
-        assertThat(convertedSignal.errorMessage().peek()).isEqualTo("Invalid email: invalid@@");
-        assertThat(convertedSignal.invalid().peek()).isTrue();
-        assertThat(convertedSignal.model().peek()).isNull();
-        assertThat(convertedSignal.presentation().peek()).isEqualTo("invalid@@");
+    @Nested
+    @DisplayName("when an invalid presentation value is set")
+    class InvalidConversion {
+
+        @BeforeEach
+        void setInvalidPresentation() {
+            convertedSignal.setPresentation("not-an-email");
+        }
+
+        @Test
+        @DisplayName("model signal is not changed")
+        void model_signal_is_not_changed() {
+            assertThat(convertedSignal.model().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("presentation signal returns the raw invalid input")
+        void presentation_signal_returns_raw_invalid_input() {
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("not-an-email");
+        }
+
+        @Test
+        @DisplayName("invalid signal is true")
+        void invalid_signal_is_true() {
+            assertThat(convertedSignal.invalid().peek()).isTrue();
+        }
+
+        @Test
+        @DisplayName("error message signal contains the conversion error")
+        void error_message_contains_conversion_error() {
+            assertThat(convertedSignal.errorMessage().peek()).isEqualTo("Invalid email: not-an-email");
+        }
+
+        @Test
+        @DisplayName("a second invalid value updates the error message")
+        void second_invalid_value_updates_error_message() {
+            convertedSignal.setPresentation("also@@bad");
+            assertThat(convertedSignal.errorMessage().peek()).isEqualTo("Invalid email: also@@bad");
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("also@@bad");
+        }
     }
 
-    @Test
-    void setting_model_signal_updates_presentation_signal() {
-        modelSignal.set(new Email("foo@bar.com"));
-        assertThat(convertedSignal.errorMessage().peek()).isNull();
-        assertThat(convertedSignal.invalid().peek()).isFalse();
-        assertThat(convertedSignal.presentation().peek()).isEqualTo("foo@bar.com");
+    @Nested
+    @DisplayName("when recovering from an invalid state by setting a valid value")
+    class RecoveryFromInvalid {
+
+        @BeforeEach
+        void transitionFromInvalidToValid() {
+            convertedSignal.setPresentation("bad-input");
+            convertedSignal.setPresentation("recovered@example.com");
+        }
+
+        @Test
+        @DisplayName("model is updated with the valid value")
+        void model_is_updated() {
+            assertThat(convertedSignal.model().peek()).isEqualTo(new Email("recovered@example.com"));
+        }
+
+        @Test
+        @DisplayName("invalid signal returns to false")
+        void invalid_returns_to_false() {
+            assertThat(convertedSignal.invalid().peek()).isFalse();
+        }
+
+        @Test
+        @DisplayName("error message is cleared")
+        void error_message_is_cleared() {
+            assertThat(convertedSignal.errorMessage().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("presentation signal returns the valid value")
+        void presentation_returns_valid_value() {
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("recovered@example.com");
+        }
+    }
+
+    @Nested
+    @DisplayName("when transitioning from a valid state to an invalid state")
+    class TransitionToInvalid {
+
+        @BeforeEach
+        void transitionFromValidToInvalid() {
+            convertedSignal.setPresentation("good@example.com");
+            convertedSignal.setPresentation("now-broken");
+        }
+
+        @Test
+        @DisplayName("model retains the last successfully converted value")
+        void model_retains_last_valid_value() {
+            assertThat(convertedSignal.model().peek()).isEqualTo(new Email("good@example.com"));
+        }
+
+        @Test
+        @DisplayName("invalid signal becomes true")
+        void invalid_becomes_true() {
+            assertThat(convertedSignal.invalid().peek()).isTrue();
+        }
+
+        @Test
+        @DisplayName("error message is set")
+        void error_message_is_set() {
+            assertThat(convertedSignal.errorMessage().peek()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("presentation signal returns the raw invalid input, not the model-derived value")
+        void presentation_returns_raw_input() {
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("now-broken");
+        }
+    }
+
+    @Nested
+    @DisplayName("when the model signal is changed externally")
+    class ExternalModelChange {
+
+        @Test
+        @DisplayName("presentation signal reflects the new model value")
+        void presentation_reflects_external_model_change() {
+            modelSignal.set(new Email("external@example.com"));
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("external@example.com");
+        }
+
+        @Test
+        @DisplayName("invalid and error message remain unaffected")
+        void validation_state_unchanged() {
+            modelSignal.set(new Email("external@example.com"));
+            assertThat(convertedSignal.invalid().peek()).isFalse();
+            assertThat(convertedSignal.errorMessage().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("presentation signal still returns raw input when in invalid state")
+        void presentation_returns_raw_input_when_invalid_despite_external_model_change() {
+            convertedSignal.setPresentation("bad-input");
+            modelSignal.set(new Email("external@example.com"));
+
+            assertThat(convertedSignal.invalid().peek()).isTrue();
+            assertThat(convertedSignal.presentation().peek()).isEqualTo("bad-input");
+        }
+    }
+
+    @Nested
+    @DisplayName("when a blank presentation value is set")
+    class BlankPresentation {
+
+        @BeforeEach
+        void setBlankPresentation() {
+            convertedSignal.setPresentation("valid@example.com");
+            convertedSignal.setPresentation("");
+        }
+
+        @Test
+        @DisplayName("model is set to null")
+        void model_is_null() {
+            assertThat(convertedSignal.model().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("conversion is considered valid")
+        void conversion_is_valid() {
+            assertThat(convertedSignal.invalid().peek()).isFalse();
+            assertThat(convertedSignal.errorMessage().peek()).isNull();
+        }
+
+        @Test
+        @DisplayName("presentation signal returns the converter's representation of null")
+        void presentation_returns_empty_string() {
+            assertThat(convertedSignal.presentation().peek()).isEmpty();
+        }
     }
 }
