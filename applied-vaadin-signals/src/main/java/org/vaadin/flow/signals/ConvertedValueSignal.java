@@ -7,8 +7,6 @@ import com.vaadin.flow.signals.local.ValueSignal;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
-import static java.util.Objects.requireNonNull;
-
 /**
  * A {@link ConvertedSignal} implementation backed by a {@link ValueSignal}.
  * <p>
@@ -31,12 +29,9 @@ import static java.util.Objects.requireNonNull;
 public class ConvertedValueSignal<M extends @Nullable Object, P extends @Nullable Object> implements ConvertedSignal<M, P> {
 
     private final Signal<M> modelSignal;
-    private final SerializableConsumer<M> writeCallback;
-    private final Converter<P, M> converter;
-    private final Signal<P> presentationSignal;
+    private final ValueSignal<P> presentationSignal;
     private final ValueSignal<Boolean> invalid = new ValueSignal<>(false);
     private final ValueSignal<@Nullable String> errorMessage = new ValueSignal<>(null);
-    private P typedPresentationValue;
 
     /**
      * Creates a new converted value signal.
@@ -50,15 +45,17 @@ public class ConvertedValueSignal<M extends @Nullable Object, P extends @Nullabl
     public ConvertedValueSignal(Signal<M> modelSignal, SerializableConsumer<M> writeCallback,
                                 Converter<P, M> converter) {
         this.modelSignal = modelSignal;
-        this.writeCallback = writeCallback;
-        this.converter = converter;
-        this.presentationSignal = () -> {
-            if (requireNonNull(invalid.get())) {
-                return typedPresentationValue;
-            } else {
-                return converter.convertToPresentation(modelSignal.get(), null);
-            }
-        };
+        var convertedPresentationSignal = Signal.computed(() -> converter.convertToPresentation(modelSignal.get(), null));
+        this.presentationSignal = new ValueSignal<>(null);
+        // TODO Is this causing a memory leak?
+        Signal.unboundEffect(() -> {
+            var presentationValue = presentationSignal.get();
+            var result = converter.convertToModel(presentationValue, null);
+            invalid.set(result.isError());
+            errorMessage.set(result.getMessage().orElse(null));
+            result.ifOk(writeCallback);
+        });
+        Signal.unboundEffect(() -> presentationSignal.set(convertedPresentationSignal.get()));
     }
 
     @Override
@@ -93,10 +90,6 @@ public class ConvertedValueSignal<M extends @Nullable Object, P extends @Nullabl
      * @param presentation the new presentation value to convert and apply
      */
     public void setPresentation(P presentation) {
-        this.typedPresentationValue = presentation;
-        var result = converter.convertToModel(presentation, null);
-        invalid.set(result.isError());
-        errorMessage.set(result.getMessage().orElse(null));
-        result.ifOk(writeCallback);
+        presentationSignal.set(presentation);
     }
 }

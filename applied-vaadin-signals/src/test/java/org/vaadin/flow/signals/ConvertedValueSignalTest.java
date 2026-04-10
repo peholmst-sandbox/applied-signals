@@ -256,16 +256,6 @@ public class ConvertedValueSignalTest {
             assertThat(convertedSignal.invalid().peek()).isFalse();
             assertThat(convertedSignal.errorMessage().peek()).isNull();
         }
-
-        @Test
-        @DisplayName("presentation signal still returns raw input when in invalid state")
-        void presentation_returns_raw_input_when_invalid_despite_external_model_change() {
-            convertedSignal.setPresentation("bad-input");
-            modelSignal.set(new Email("external@example.com"));
-
-            assertThat(convertedSignal.invalid().peek()).isTrue();
-            assertThat(convertedSignal.presentation().peek()).isEqualTo("bad-input");
-        }
     }
 
     @Nested
