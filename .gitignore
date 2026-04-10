@@ -34,3 +34,7 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Vaadin ###
+
+example-app/src/main/frontend/generated/
