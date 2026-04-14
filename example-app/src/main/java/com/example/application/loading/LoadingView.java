@@ -3,10 +3,12 @@ package com.example.application.loading;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
+import com.vaadin.flow.function.SerializableRunnable;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.signals.local.ValueSignal;
 import org.jspecify.annotations.Nullable;
@@ -30,27 +32,30 @@ class LoadingView extends VerticalLayout {
                 .bindReady(products::set)
                 .bindFailed(failed::set)
                 .build();
+        SerializableRunnable refresh = () -> Thread.startVirtualThread(() -> loader.load(backendService::getProducts));
 
         var loadingIndicator = new ProgressBar();
         loadingIndicator.setIndeterminate(true);
 
         var errorMessage = createErrorMessage("Error loading products. Try again later.");
 
+        var refreshBtn = new Button("Refresh", _ -> refresh.run());
+
         var grid = new Grid<Product>();
         grid.setSelectionMode(Grid.SelectionMode.NONE);
         grid.addColumn(Product::name).setHeader("Name");
         grid.addColumn(Product::price).setHeader("Price");
         grid.addColumn(Product::category).setHeader("Category");
-
+        grid.bindEnabled(() -> !loading.get() && !failed.get());
         bindItems(grid, nullSafe(products, List.of()));
         loadingIndicator.bindVisible(loading);
         errorMessage.bindVisible(failed);
 
         grid.setSizeFull();
         setSizeFull();
-        add(loadingIndicator, errorMessage, grid);
+        add(refreshBtn, loadingIndicator, errorMessage, grid);
 
-        addAttachListener(_ -> Thread.startVirtualThread(() -> loader.load(backendService::getProducts)));
+        addAttachListener(_ -> refresh.run());
     }
 
     private Component createErrorMessage(String message) {
