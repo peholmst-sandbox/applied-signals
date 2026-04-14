@@ -14,6 +14,7 @@ public class Loader<T extends @Nullable Object> implements Serializable {
 
     // TODO Write JavaDocs, tests, consider a better name.
 
+    private final boolean retainResult;
     private final @Nullable SerializableConsumer<Boolean> setNotLoaded;
     private final @Nullable SerializableConsumer<Boolean> setLoading;
     private final @Nullable SerializableConsumer<@Nullable T> setReady;
@@ -23,11 +24,13 @@ public class Loader<T extends @Nullable Object> implements Serializable {
     private Loadable<T> value;
 
     public Loader(Loadable<T> initialValue,
+                  boolean retainResult,
                   @Nullable SerializableConsumer<Boolean> setNotLoaded,
                   @Nullable SerializableConsumer<Boolean> setLoading,
                   @Nullable SerializableConsumer<@Nullable T> setReady,
                   @Nullable SerializableConsumer<@Nullable Exception> setError,
                   @Nullable SerializableConsumer<Boolean> setFailed) {
+        this.retainResult = retainResult;
         this.setNotLoaded = setNotLoaded;
         this.setLoading = setLoading;
         this.setReady = setReady;
@@ -85,7 +88,7 @@ public class Loader<T extends @Nullable Object> implements Serializable {
         setLoading(value instanceof Loadable.Loading<T>);
         if (value instanceof Loadable.Ready(T result)) {
             setReady(result);
-        } else {
+        } else if (!retainResult) {
             setReady(null);
         }
         if (value instanceof Loadable.Failed(Exception error)) {
@@ -129,6 +132,7 @@ public class Loader<T extends @Nullable Object> implements Serializable {
         private @Nullable SerializableConsumer<@Nullable T> setReady;
         private @Nullable SerializableConsumer<@Nullable Exception> setError;
         private @Nullable SerializableConsumer<Boolean> setFailed;
+        private boolean retainResult = true;
 
         public Builder<T> bindNotLoaded(SerializableConsumer<Boolean> setNotLoaded) {
             this.setNotLoaded = setNotLoaded;
@@ -155,8 +159,13 @@ public class Loader<T extends @Nullable Object> implements Serializable {
             return this;
         }
 
+        public Builder<T> setRetainResult(boolean retainResult) {
+            this.retainResult = retainResult;
+            return this;
+        }
+
         public Loader<T> build(Loadable<T> initialValue) {
-            return new Loader<>(initialValue, setNotLoaded, setLoading, setReady, setError, setFailed);
+            return new Loader<>(initialValue, retainResult, setNotLoaded, setLoading, setReady, setError, setFailed);
         }
 
         public Loader<T> build() {
