@@ -8,14 +8,14 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * A sealed sum type representing the three states of an asynchronous operation:
- * {@link Loading}, {@link Ready}, or {@link Failed}.
+ * A sealed sum type representing the four states of an asynchronous operation:
+ * {@link NotLoaded}, {@link Loading}, {@link Ready}, or {@link Failed}.
  * <p>
- * Use the static factory methods {@link #loading()}, {@link #ready(Object)},
- * and {@link #failed(Exception)} to create instances. The {@link #load(Supplier,
- * Consumer)} convenience method runs a supplier and drives a consumer through
- * the appropriate state transitions, emitting {@link Loading} only when the
- * operation takes longer than a configurable delay.
+ * Use the static factory methods {@link #notLoaded()}, {@link #loading()},
+ * {@link #ready(Object)}, and {@link #failed(Exception)} to create instances.
+ * The {@link #load(Supplier, Consumer)} convenience method runs a supplier
+ * and drives a consumer through the appropriate state transitions, emitting
+ * {@link Loading} only when the operation takes longer than a configurable delay.
  *
  * @param <T> the result type of the operation
  */
@@ -23,7 +23,18 @@ import java.util.function.Supplier;
 public sealed interface Loadable<T extends @Nullable Object> {
 
     @SuppressWarnings("rawtypes")
+    NotLoaded NOT_LOADED_INSTANCE = new NotLoaded();
+
+    @SuppressWarnings("rawtypes")
     Loading LOADING_INSTANCE = new Loading();
+
+    /**
+     * No operation has been started yet.
+     *
+     * @param <T> the result type of the operation
+     */
+    record NotLoaded<T extends @Nullable Object>() implements Loadable<T> {
+    }
 
     /**
      * The operation is in progress and no result is available yet.
@@ -49,6 +60,17 @@ public sealed interface Loadable<T extends @Nullable Object> {
      * @param <T>   the result type of the operation
      */
     record Failed<T extends @Nullable Object>(Exception error) implements Loadable<T> {
+    }
+
+    /**
+     * Returns a cached {@link NotLoaded} instance.
+     *
+     * @param <T> the result type of the operation
+     * @return a {@code NotLoaded} instance
+     */
+    @SuppressWarnings("unchecked")
+    static <T extends @Nullable Object> NotLoaded<T> notLoaded() {
+        return (NotLoaded<T>) NOT_LOADED_INSTANCE;
     }
 
     /**

@@ -19,6 +19,7 @@ import org.jspecify.annotations.Nullable;
 @NullMarked
 public class LoadableSignal<T extends @Nullable Object> extends ValueSignal<Loadable<T>> {
 
+    private final Signal<Boolean> notLoaded;
     private final Signal<@Nullable T> finished;
     private final Signal<Boolean> failed;
     private final Signal<Boolean> loading;
@@ -31,6 +32,7 @@ public class LoadableSignal<T extends @Nullable Object> extends ValueSignal<Load
      */
     public LoadableSignal(Loadable<T> initialValue) {
         super(initialValue);
+        notLoaded = Signal.computed(() -> LoadableSignal.this.get() instanceof Loadable.NotLoaded<T>);
         finished = Signal.computed(() -> {
             var value = LoadableSignal.this.get();
             if (value instanceof Loadable.Ready<T>(T result)) {
@@ -47,6 +49,16 @@ public class LoadableSignal<T extends @Nullable Object> extends ValueSignal<Load
             }
             return null;
         });
+    }
+
+    /**
+     * Returns a signal that is {@code true} when in the
+     * {@link Loadable.NotLoaded} state.
+     *
+     * @return a computed boolean signal
+     */
+    public Signal<Boolean> notLoaded() {
+        return notLoaded;
     }
 
     /**

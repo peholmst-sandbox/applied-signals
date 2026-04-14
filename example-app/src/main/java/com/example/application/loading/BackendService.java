@@ -24,7 +24,7 @@ class BackendService {
 
     public List<Product> getProducts() {
         try {
-            Thread.sleep(800);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
