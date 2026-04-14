@@ -8,13 +8,13 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.signals.Signal;
 import org.vaadin.flow.signals.Loadable;
 import org.vaadin.flow.signals.LoadableSignal;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
+
+import static org.vaadin.flow.component.grid.GridUtil.bindItems;
+import static org.vaadin.flow.signals.SignalUtil.nullSafe;
 
 @Route("loading")
 class LoadingView extends VerticalLayout {
@@ -33,10 +33,7 @@ class LoadingView extends VerticalLayout {
         grid.addColumn(Product::price).setHeader("Price");
         grid.addColumn(Product::category).setHeader("Category");
 
-        Signal.effect(this, () -> {
-            var result = products.finished().get();
-            grid.setItems(Objects.requireNonNullElse(result, Collections.emptyList()));
-        });
+        bindItems(grid, nullSafe(products.finished(), List.of()));
         loadingIndicator.bindVisible(products.loading());
         errorMessage.bindVisible(products.failed());
 
