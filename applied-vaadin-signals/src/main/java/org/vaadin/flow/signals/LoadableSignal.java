@@ -4,6 +4,7 @@ import com.vaadin.flow.signals.Signal;
 import com.vaadin.flow.signals.local.ValueSignal;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
+import org.vaadin.flow.data.Loadable;
 
 /**
  * A {@link ValueSignal} holding a {@link Loadable} value, with computed
@@ -15,8 +16,10 @@ import org.jspecify.annotations.Nullable;
  * individual values actually change.
  *
  * @param <T> the result type of the loadable operation
+ * @deprecated Use {@link org.vaadin.flow.data.Loader} instead.
  */
 @NullMarked
+@Deprecated(forRemoval = true)
 public class LoadableSignal<T extends @Nullable Object> extends ValueSignal<Loadable<T>> {
 
     private final Signal<Boolean> notLoaded;

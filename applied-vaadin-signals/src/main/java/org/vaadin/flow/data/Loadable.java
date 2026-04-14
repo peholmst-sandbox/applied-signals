@@ -1,4 +1,4 @@
-package org.vaadin.flow.signals;
+package org.vaadin.flow.data;
 
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -119,6 +119,7 @@ public sealed interface Loadable<T extends @Nullable Object> {
      * @param <T>              the result type of the operation
      * @see #load(Supplier, Consumer, Duration)
      */
+    @Deprecated(forRemoval = true)
     static <T extends @Nullable Object> void load(Supplier<T> outcomeProvider, Consumer<Loadable<T>> outcomeConsumer) {
         load(outcomeProvider, outcomeConsumer, Duration.ofMillis(300));
     }
@@ -141,6 +142,7 @@ public sealed interface Loadable<T extends @Nullable Object> {
      * @param loadingDelay     how long to wait before emitting {@link Loading}
      * @param <T>              the result type of the operation
      */
+    @Deprecated(forRemoval = true)
     static <T extends @Nullable Object> void load(Supplier<T> outcomeProvider, Consumer<Loadable<T>> outcomeConsumer,
                                                    Duration loadingDelay) {
         var lock = new Object();

@@ -1,4 +1,4 @@
-package org.vaadin.flow.signals;
+package org.vaadin.flow.data;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

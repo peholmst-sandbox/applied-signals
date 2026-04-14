@@ -8,8 +8,9 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.router.Route;
-import org.vaadin.flow.signals.Loadable;
-import org.vaadin.flow.signals.LoadableSignal;
+import com.vaadin.flow.signals.local.ValueSignal;
+import org.jspecify.annotations.Nullable;
+import org.vaadin.flow.data.Loader;
 
 import java.util.List;
 
@@ -20,7 +21,15 @@ import static org.vaadin.flow.signals.SignalUtil.nullSafe;
 class LoadingView extends VerticalLayout {
 
     LoadingView(BackendService backendService) {
-        var products = new LoadableSignal<List<Product>>(Loadable.notLoaded());
+        var loading = new ValueSignal<>(false);
+        var failed = new ValueSignal<>(false);
+        var products = new ValueSignal<@Nullable List<Product>>(null);
+
+        var loader = new Loader.Builder<List<Product>>()
+                .bindLoading(loading::set)
+                .bindReady(products::set)
+                .bindFailed(failed::set)
+                .build();
 
         var loadingIndicator = new ProgressBar();
         loadingIndicator.setIndeterminate(true);
@@ -33,15 +42,15 @@ class LoadingView extends VerticalLayout {
         grid.addColumn(Product::price).setHeader("Price");
         grid.addColumn(Product::category).setHeader("Category");
 
-        bindItems(grid, nullSafe(products.finished(), List.of()));
-        loadingIndicator.bindVisible(products.loading());
-        errorMessage.bindVisible(products.failed());
+        bindItems(grid, nullSafe(products, List.of()));
+        loadingIndicator.bindVisible(loading);
+        errorMessage.bindVisible(failed);
 
         grid.setSizeFull();
         setSizeFull();
         add(loadingIndicator, errorMessage, grid);
 
-        addAttachListener(_ -> Thread.startVirtualThread(() -> Loadable.load(backendService::getProducts, products::set)));
+        addAttachListener(_ -> Thread.startVirtualThread(() -> loader.load(backendService::getProducts)));
     }
 
     private Component createErrorMessage(String message) {
