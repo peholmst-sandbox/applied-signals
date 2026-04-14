@@ -28,6 +28,7 @@ class LoadingView extends VerticalLayout {
         var errorMessage = createErrorMessage("Error loading products. Try again later.");
 
         var grid = new Grid<Product>();
+        grid.setSelectionMode(Grid.SelectionMode.NONE);
         grid.addColumn(Product::name).setHeader("Name");
         grid.addColumn(Product::price).setHeader("Price");
         grid.addColumn(Product::category).setHeader("Category");
