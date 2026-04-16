@@ -1,9 +1,13 @@
 package org.vaadin.flow.signals;
 
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.function.SerializableConsumer;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterListener;
+import com.vaadin.flow.router.RouteParameters;
+import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.signals.Signal;
-import com.vaadin.flow.signals.local.AbstractLocalSignal;
 import com.vaadin.flow.signals.local.ListSignal;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
@@ -48,4 +52,20 @@ public final class SignalUtil {
         }
         existingSignals.values().forEach(signal::remove);
     }
+
+    public static Registration bindRouteParameters(Component view, Signal<RouteParameters> signal, SerializableConsumer<RouteParameters> writeCallback) {
+        return Registration.combine(Signal.effect(view, () -> {
+                    var routeParameters = signal.get();
+                    view.getUI().ifPresent(ui -> ui.navigate(view.getClass(), routeParameters));
+                }),
+                view.addAttachListener(attachEvent -> {
+                    var registration = attachEvent.getUI().addAfterNavigationListener(afterNavigationEvent -> writeCallback.accept(afterNavigationEvent.getRouteParameters()));
+                    view.addDetachListener(detachEvent -> {
+                        detachEvent.unregisterListener();
+                        registration.remove();
+                    });
+                }));
+    }
+
+
 }
