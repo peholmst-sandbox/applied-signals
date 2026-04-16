@@ -2,8 +2,6 @@ package org.vaadin.flow.signals;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.function.SerializableConsumer;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.BeforeEnterListener;
 import com.vaadin.flow.router.RouteParameters;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.signals.Signal;
@@ -53,6 +51,34 @@ public final class SignalUtil {
         existingSignals.values().forEach(signal::remove);
     }
 
+    /**
+     * Creates a two-way binding between a {@link Signal} of {@link RouteParameters} and the
+     * browser URL of the given view. When the signal value changes, the browser navigates to the
+     * URL corresponding to the new route parameters. When the user navigates (e.g. via the address
+     * bar or browser history), the updated route parameters are passed to {@code writeCallback}.
+     *
+     * <p>The returned {@link Registration} removes both the navigation effect and the
+     * after-navigation listener when called.
+     *
+     * <p>Example usage with a {@link com.vaadin.flow.signals.local.ValueSignal}:
+     * <pre>{@code
+     * @Route("urlparams/:id/:action?")
+     * class UrlParamsView extends VerticalLayout {
+     *     UrlParamsView() {
+     *         var routeParams = new ValueSignal<RouteParameters>(RouteParameters.empty());
+     *         SignalUtil.bindRouteParameters(this, routeParams, routeParams::set);
+     *
+     *         var id = new RouteParamSignal("id", routeParams, routeParams::set);
+     *         // ...
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param view          the routed view component that owns the binding
+     * @param signal        the signal holding the current route parameters
+     * @param writeCallback the callback invoked with new route parameters after each navigation
+     * @return a registration that removes the binding when called
+     */
     public static Registration bindRouteParameters(Component view, Signal<RouteParameters> signal, SerializableConsumer<RouteParameters> writeCallback) {
         return Registration.combine(Signal.effect(view, () -> {
                     var routeParameters = signal.get();
