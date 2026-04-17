@@ -43,6 +43,30 @@ public final class SignalUtil {
         return () -> Objects.requireNonNullElse(signal.get(), defaultValue);
     }
 
+    /**
+     * Reconciles the contents of a {@link ListSignal} with a given list of items,
+     * identifying items by the key returned from {@code identityProvider}.
+     *
+     * <p>After this method returns, the signal contains exactly the given
+     * {@code items} in the given order. Items whose identity already exists in
+     * the signal are kept (their backing child signals are preserved and moved
+     * into place), new items are inserted, and items no longer present are
+     * removed. This preserves per-item signal identity across refreshes, so
+     * effects and UI bindings attached to individual child signals remain
+     * stable.
+     *
+     * <p>Example usage:
+     * <pre>{@code
+     * var orders = new ListSignal<OrderDTO>();
+     * SignalUtil.matchItems(orders, orderService.findAllOrders(), OrderDTO::id);
+     * }</pre>
+     *
+     * @param signal           the list signal to update in place
+     * @param items            the desired contents of the list, in order
+     * @param identityProvider a function mapping each item to a stable identity
+     *                         key used to match against existing entries
+     * @param <T>              the item type
+     */
     public static <T> void matchItems(ListSignal<T> signal, List<T> items, Function<T, Object> identityProvider) {
         var existingSignals = signal.peek().stream().collect(Collectors.toMap(s -> identityProvider.apply(s.peek()), s -> s));
         for (int i = 0; i < items.size(); i++) {
@@ -99,6 +123,22 @@ public final class SignalUtil {
                 }));
     }
 
+    /**
+     * Splits a {@code Signal<Result<M>>} into separate narrower signals for the
+     * three pieces of information a {@link Result} carries: whether it is an
+     * error, the error message, and the successful value.
+     *
+     * <p>The returned {@link ResultDemux} derives all three signals from the
+     * same source, so they stay consistent and update whenever the source
+     * changes. The result is typically used together with
+     * {@link #bindValidation(Component, ResultDemux)} to drive field validation
+     * state.
+     *
+     * @param signal the source signal holding a {@link Result}
+     * @param <M>    the successful value type of the source {@code Result}
+     * @return a demultiplexed view of the source signal
+     * @see ResultDemux
+     */
     public static <M extends @Nullable Object> ResultDemux<M> demuxResult(Signal<Result<M>> signal) {
         var invalid = signal.map(Result::isError);
         var errorMessage = signal.map(r -> r.getMessage().orElse(null));
@@ -126,6 +166,26 @@ public final class SignalUtil {
         };
     }
 
+    /**
+     * Binds the validation state of a field to a {@link ResultDemux}. The field
+     * is switched to manual validation mode, and its invalid flag and error
+     * message are kept in sync with the demux through a {@link Signal#effect
+     * signal effect} that is scoped to the field's attach lifecycle.
+     *
+     * <p>Typical use is in combination with {@link #demuxResult(Signal)} to
+     * surface conversion errors on an input field:
+     * <pre>{@code
+     * var emailDemux = SignalUtil.demuxResult(emailSignal);
+     * SignalUtil.bindValidation(emailField, emailDemux);
+     * }</pre>
+     *
+     * @param field the component to bind validation state to; must implement
+     *              {@link HasValidation}
+     * @param demux the demux supplying {@code invalid} and {@code errorMessage}
+     *              signals
+     * @param <C>   the field type
+     * @return a registration that removes the binding effect when called
+     */
     public static <C extends Component & HasValidation> Registration bindValidation(C field, ResultDemux<?> demux) {
         field.setManualValidation(true);
         return Signal.effect(field, () -> {
@@ -134,10 +194,57 @@ public final class SignalUtil {
         });
     }
 
+    /**
+     * Creates a {@link PresentationBackedConvertedSignal} over a signal that
+     * holds the raw presentation value. Equivalent to
+     * {@link #presentationBacked(Converter, Signal, SerializableConsumer, SerializableSupplier)}
+     * with a supplier that creates a fresh default {@link ValueContext} on each
+     * conversion.
+     *
+     * @param converter     the converter between presentation and model types
+     * @param signal        the source signal holding the presentation value
+     * @param writeCallback the callback used to write a new presentation value
+     *                      back into the source
+     * @param <M>           the model type
+     * @param <P>           the presentation type
+     * @return a converted signal exposing the model view of the source
+     * @see PresentationBackedConvertedSignal
+     */
     public static <M extends @Nullable Object, P extends @Nullable Object> PresentationBackedConvertedSignal<M> presentationBacked(Converter<P, M> converter, Signal<@Nullable P> signal, SerializableConsumer<@Nullable P> writeCallback) {
         return presentationBacked(converter, signal, writeCallback, ValueContext::new);
     }
 
+    /**
+     * Creates a {@link PresentationBackedConvertedSignal} over a signal that
+     * holds the raw presentation value.
+     *
+     * <p>Reading the returned signal runs
+     * {@link Converter#convertToModel(Object, ValueContext)} on the current
+     * presentation value, so conversion errors surface as
+     * {@link Result#error(String)}. Writing via
+     * {@link PresentationBackedConvertedSignal#setModel(Object) setModel}
+     * converts the given model value with
+     * {@link Converter#convertToPresentation(Object, ValueContext)} and passes
+     * the result to {@code writeCallback}.
+     *
+     * <p>Typical use is to expose a strongly typed model view over a signal
+     * whose natural representation is a string, for example a route parameter:
+     * <pre>{@code
+     * var id = new RouteParamSignal("id", routeParams, routeParams::set);
+     * var idModel = SignalUtil.presentationBacked(new UUIDConverter(), id, id::set);
+     * }</pre>
+     *
+     * @param converter       the converter between presentation and model types
+     * @param signal          the source signal holding the presentation value
+     * @param writeCallback   the callback used to write a new presentation value
+     *                        back into the source
+     * @param contextSupplier supplies the {@link ValueContext} passed to the
+     *                        converter on each conversion
+     * @param <M>             the model type
+     * @param <P>             the presentation type
+     * @return a converted signal exposing the model view of the source
+     * @see PresentationBackedConvertedSignal
+     */
     public static <M extends @Nullable Object, P extends @Nullable Object> PresentationBackedConvertedSignal<M> presentationBacked(Converter<P, M> converter, Signal<@Nullable P> signal, SerializableConsumer<@Nullable P> writeCallback, SerializableSupplier<ValueContext> contextSupplier) {
         return new PresentationBackedConvertedSignal<>() {
 
@@ -153,10 +260,62 @@ public final class SignalUtil {
         };
     }
 
+    /**
+     * Creates a {@link ModelBackedConvertedSignal} over a signal that holds the
+     * model value as a {@link Result}. Equivalent to
+     * {@link #modelBacked(Converter, Signal, SerializableConsumer, SerializableSupplier)}
+     * with a supplier that creates a fresh default {@link ValueContext} on each
+     * conversion.
+     *
+     * @param converter     the converter between presentation and model types
+     * @param model         the source signal holding the model value as a
+     *                      {@link Result}
+     * @param writeCallback the callback used to write a new {@link Result} back
+     *                      into the source
+     * @param <M>           the model type
+     * @param <P>           the presentation type
+     * @return a converted signal exposing the presentation view of the source
+     * @see ModelBackedConvertedSignal
+     */
     public static <M extends @Nullable Object, P extends @Nullable Object> ModelBackedConvertedSignal<P> modelBacked(Converter<P, M> converter, Signal<Result<@Nullable M>> model, SerializableConsumer<Result<@Nullable M>> writeCallback) {
         return modelBacked(converter, model, writeCallback, ValueContext::new);
     }
 
+    /**
+     * Creates a {@link ModelBackedConvertedSignal} over a signal that holds the
+     * model value as a {@link Result}.
+     *
+     * <p>Reading the returned signal runs
+     * {@link Converter#convertToPresentation(Object, ValueContext)} on the
+     * successful model value. Writing via
+     * {@link ModelBackedConvertedSignal#setPresentation(Object) setPresentation}
+     * runs {@link Converter#convertToModel(Object, ValueContext)} and passes
+     * the resulting {@link Result} to {@code writeCallback}. When the current
+     * model is in an error state, reads fall back to the presentation value
+     * most recently passed to {@code setPresentation}, so a bound field keeps
+     * showing the user's invalid input instead of reverting.
+     *
+     * <p>Typical use is to drive a validated input field from a model-typed
+     * signal:
+     * <pre>{@code
+     * var emailSignal = new ValueSignal<Result<@Nullable Email>>(Result.ok(null));
+     * var emailPresentation = SignalUtil.modelBacked(new EmailConverter(), emailSignal, emailSignal::set);
+     *
+     * emailField.bindValue(emailPresentation, emailPresentation::setPresentation);
+     * }</pre>
+     *
+     * @param converter       the converter between presentation and model types
+     * @param model           the source signal holding the model value as a
+     *                        {@link Result}
+     * @param writeCallback   the callback used to write a new {@link Result}
+     *                        back into the source
+     * @param contextSupplier supplies the {@link ValueContext} passed to the
+     *                        converter on each conversion
+     * @param <M>             the model type
+     * @param <P>             the presentation type
+     * @return a converted signal exposing the presentation view of the source
+     * @see ModelBackedConvertedSignal
+     */
     public static <M extends @Nullable Object, P extends @Nullable Object> ModelBackedConvertedSignal<P> modelBacked(Converter<P, M> converter, Signal<Result<@Nullable M>> model, SerializableConsumer<Result<@Nullable M>> writeCallback, SerializableSupplier<ValueContext> contextSupplier) {
         return new ModelBackedConvertedSignal<>() {
 
