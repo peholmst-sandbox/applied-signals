@@ -1,7 +1,12 @@
 package org.vaadin.flow.signals;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.HasValidation;
+import com.vaadin.flow.data.binder.Result;
+import com.vaadin.flow.data.binder.ValueContext;
+import com.vaadin.flow.data.converter.Converter;
 import com.vaadin.flow.function.SerializableConsumer;
+import com.vaadin.flow.function.SerializableSupplier;
 import com.vaadin.flow.router.RouteParameters;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.signals.Signal;
@@ -11,6 +16,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -93,5 +99,96 @@ public final class SignalUtil {
                 }));
     }
 
+    public static <M extends @Nullable Object> ResultDemux<M> demuxResult(Signal<Result<M>> signal) {
+        var invalid = signal.map(Result::isError);
+        var errorMessage = signal.map(r -> r.getMessage().orElse(null));
+        return new ResultDemux<>() {
+            @Override
+            public Signal<Boolean> invalid() {
+                return invalid;
+            }
+
+            @Override
+            public Signal<@Nullable String> errorMessage() {
+                return errorMessage;
+            }
+
+            @Override
+            public Signal<M> valueOrElse(M other) {
+                return signal.map(r -> {
+                    try {
+                        return r.getOrThrow(InvalidModelValueException::new);
+                    } catch (InvalidModelValueException e) {
+                        return other;
+                    }
+                });
+            }
+        };
+    }
+
+    public static <C extends Component & HasValidation> Registration bindValidation(C field, ResultDemux<?> demux) {
+        field.setManualValidation(true);
+        return Signal.effect(field, () -> {
+            field.setInvalid(demux.invalid().get());
+            field.setErrorMessage(demux.errorMessage().get());
+        });
+    }
+
+    public static <M extends @Nullable Object, P extends @Nullable Object> PresentationBackedConvertedSignal<M> presentationBacked(Converter<P, M> converter, Signal<@Nullable P> signal, SerializableConsumer<@Nullable P> writeCallback) {
+        return presentationBacked(converter, signal, writeCallback, ValueContext::new);
+    }
+
+    public static <M extends @Nullable Object, P extends @Nullable Object> PresentationBackedConvertedSignal<M> presentationBacked(Converter<P, M> converter, Signal<@Nullable P> signal, SerializableConsumer<@Nullable P> writeCallback, SerializableSupplier<ValueContext> contextSupplier) {
+        return new PresentationBackedConvertedSignal<>() {
+
+            @Override
+            public Result<M> get() {
+                return converter.convertToModel(signal.get(), contextSupplier.get());
+            }
+
+            @Override
+            public void setModel(M model) {
+                writeCallback.accept(converter.convertToPresentation(model, contextSupplier.get()));
+            }
+        };
+    }
+
+    public static <M extends @Nullable Object, P extends @Nullable Object> ModelBackedConvertedSignal<P> modelBacked(Converter<P, M> converter, Signal<Result<@Nullable M>> model, SerializableConsumer<Result<@Nullable M>> writeCallback) {
+        return modelBacked(converter, model, writeCallback, ValueContext::new);
+    }
+
+    public static <M extends @Nullable Object, P extends @Nullable Object> ModelBackedConvertedSignal<P> modelBacked(Converter<P, M> converter, Signal<Result<@Nullable M>> model, SerializableConsumer<Result<@Nullable M>> writeCallback, SerializableSupplier<ValueContext> contextSupplier) {
+        return new ModelBackedConvertedSignal<>() {
+
+            private boolean cachedPresentationSet = false;
+            private P cachedPresentation;
+
+            @Override
+            public P get() {
+                try {
+                    return converter.convertToPresentation(model.get().getOrThrow(InvalidModelValueException::new), contextSupplier.get());
+                } catch (InvalidModelValueException e) {
+                    if (!cachedPresentationSet) {
+                        throw new IllegalStateException("No presentation value to return");
+                    }
+                    return cachedPresentation;
+                }
+            }
+
+            @Override
+            public void setPresentation(P presentation) {
+                this.cachedPresentationSet = true;
+                this.cachedPresentation = presentation;
+                writeCallback.accept(converter.convertToModel(presentation, contextSupplier.get()));
+            }
+        };
+    }
+
+    private static class InvalidModelValueException extends RuntimeException {
+
+        public InvalidModelValueException(String message) {
+            super(message);
+        }
+    }
 
 }
