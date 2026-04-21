@@ -84,8 +84,14 @@ public final class SignalUtil {
     /**
      * Creates a two-way binding between a {@link Signal} of {@link RouteParameters} and the
      * browser URL of the given view. When the signal value changes, the browser navigates to the
-     * URL corresponding to the new route parameters. When the user navigates (e.g. via the address
-     * bar or browser history), the updated route parameters are passed to {@code writeCallback}.
+     * URL corresponding to the new route parameters, preserving the query parameters of the
+     * currently active view location. When the user navigates (e.g. via the address bar or
+     * browser history), the updated route parameters are passed to {@code writeCallback}.
+     *
+     * <p>This method only tracks and writes route parameters; query parameters are left
+     * untouched. To bind both route and query parameters together, use
+     * {@link #bindNavigationParameters(Component, Signal, SerializableConsumer, Signal,
+     * SerializableConsumer)}.
      *
      * <p>The returned {@link Registration} removes both the navigation effect and the
      * after-navigation listener when called.
@@ -112,6 +118,7 @@ public final class SignalUtil {
     public static Registration bindRouteParameters(Component view, Signal<RouteParameters> signal, SerializableConsumer<RouteParameters> writeCallback) {
         return Registration.combine(Signal.effect(view, () -> {
                     var routeParameters = signal.get();
+                    // TODO This assumes the active view location is `view`, but doesn't check it. If that's not the case, the query parameters would be wrong.
                     view.getUI().ifPresent(ui -> ui.navigate(view.getClass(), routeParameters, ui.getActiveViewLocation().getQueryParameters()));
                 }),
                 view.addAttachListener(attachEvent -> {
@@ -123,6 +130,48 @@ public final class SignalUtil {
                 }));
     }
 
+    /**
+     * Creates a two-way binding between signals of {@link RouteParameters} and
+     * {@link QueryParameters} and the browser URL of the given view. When either signal value
+     * changes, the browser navigates to the URL corresponding to the combined route and query
+     * parameters. When the user navigates (e.g. via the address bar or browser history), the
+     * updated route parameters are passed to {@code routeWriteCallback} and the updated query
+     * parameters to {@code queryWriteCallback}.
+     *
+     * <p>Use this method when the view depends on both route and query parameters. If only
+     * route parameters are needed, use
+     * {@link #bindRouteParameters(Component, Signal, SerializableConsumer)} instead.
+     *
+     * <p>The returned {@link Registration} removes both the navigation effect and the
+     * after-navigation listener when called.
+     *
+     * <p>Example usage with two {@link com.vaadin.flow.signals.local.ValueSignal}s:
+     * <pre>{@code
+     * @Route("urlparams/:id/:action?")
+     * class UrlParamsView extends VerticalLayout {
+     *     UrlParamsView() {
+     *         var routeParams = new ValueSignal<>(RouteParameters.empty());
+     *         var queryParams = new ValueSignal<>(QueryParameters.empty());
+     *         SignalUtil.bindNavigationParameters(this,
+     *                 routeParams, routeParams::set,
+     *                 queryParams, queryParams::set);
+     *
+     *         var id = new RouteParamSignal("id", routeParams, routeParams::set);
+     *         var sort = new QueryParamSignal("sort", queryParams, queryParams::set);
+     *         // ...
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param view               the routed view component that owns the binding
+     * @param routeSignal        the signal holding the current route parameters
+     * @param routeWriteCallback the callback invoked with new route parameters after each
+     *                           navigation
+     * @param querySignal        the signal holding the current query parameters
+     * @param queryWriteCallback the callback invoked with new query parameters after each
+     *                           navigation
+     * @return a registration that removes the binding when called
+     */
     public static Registration bindNavigationParameters(Component view,
                                                         Signal<RouteParameters> routeSignal, SerializableConsumer<RouteParameters> routeWriteCallback,
                                                         Signal<QueryParameters> querySignal, SerializableConsumer<QueryParameters> queryWriteCallback) {
