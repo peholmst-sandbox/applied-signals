@@ -1,18 +1,22 @@
 package com.example.application.urlparams;
 
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Result;
 import com.vaadin.flow.data.binder.ValueContext;
 import com.vaadin.flow.data.converter.Converter;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteParameters;
 import com.vaadin.flow.signals.local.ValueSignal;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
+import org.vaadin.flow.signals.QueryParamSignal;
 import org.vaadin.flow.signals.RouteParamSignal;
 import org.vaadin.flow.signals.SignalUtil;
 
@@ -26,11 +30,13 @@ import static org.vaadin.flow.signals.SignalUtil.nullSafe;
 class UrlParamsView extends VerticalLayout {
 
     UrlParamsView() {
-        var routeParams = new ValueSignal<RouteParameters>(RouteParameters.empty());
-        SignalUtil.bindRouteParameters(this, routeParams, routeParams::set);
+        var routeParams = new ValueSignal<>(RouteParameters.empty());
+        var queryParams = new ValueSignal<>(QueryParameters.empty());
+        SignalUtil.bindNavigationParameters(this, routeParams, routeParams::set, queryParams, queryParams::set);
 
         var id = new RouteParamSignal("id", routeParams, routeParams::set);
         var action = new RouteParamSignal("action", routeParams, routeParams::set);
+        var sort = new QueryParamSignal("sort", queryParams, queryParams::set);
 
         var idModel = SignalUtil.presentationBacked(new UUIDConverter(), id, id::set);
         var idDemux = SignalUtil.demuxResult(idModel);
@@ -59,7 +65,18 @@ class UrlParamsView extends VerticalLayout {
 
         var nextActionBtn = new Button("Next Action", _ -> actionModel.peek().handle(ok -> actionModel.setModel(ok == null ? Action.EDIT : ok.next()), _ -> actionModel.setModel(Action.EDIT)));
 
-        add(idField, idModelSpan, generateNewIdBtn, actionField, actionModelSpan, nextActionBtn);
+        var sortSelect = new Select<@Nullable String>("Sort (single)");
+        sortSelect.setItems("hello", "world", "foo", "bar");
+        sortSelect.setEmptySelectionAllowed(true);
+        sortSelect.setEmptySelectionCaption("(none)");
+        sortSelect.bindValue(sort.asSingleValue(), sort::setSingleValue);
+
+        var sortMultiselect = new MultiSelectComboBox<String>("Sort (multiple)");
+        sortMultiselect.setItems("hello", "world", "foo", "bar");
+        sortMultiselect.setClearButtonVisible(true);
+        sortMultiselect.bindValue(sort.asSet(), sort::set);
+
+        add(idField, idModelSpan, generateNewIdBtn, actionField, actionModelSpan, nextActionBtn, sortSelect, sortMultiselect);
     }
 
     enum Action {

@@ -7,6 +7,7 @@ import com.vaadin.flow.data.binder.ValueContext;
 import com.vaadin.flow.data.converter.Converter;
 import com.vaadin.flow.function.SerializableConsumer;
 import com.vaadin.flow.function.SerializableSupplier;
+import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.RouteParameters;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.signals.Signal;
@@ -16,7 +17,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -112,10 +112,30 @@ public final class SignalUtil {
     public static Registration bindRouteParameters(Component view, Signal<RouteParameters> signal, SerializableConsumer<RouteParameters> writeCallback) {
         return Registration.combine(Signal.effect(view, () -> {
                     var routeParameters = signal.get();
-                    view.getUI().ifPresent(ui -> ui.navigate(view.getClass(), routeParameters));
+                    view.getUI().ifPresent(ui -> ui.navigate(view.getClass(), routeParameters, ui.getActiveViewLocation().getQueryParameters()));
                 }),
                 view.addAttachListener(attachEvent -> {
                     var registration = attachEvent.getUI().addAfterNavigationListener(afterNavigationEvent -> writeCallback.accept(afterNavigationEvent.getRouteParameters()));
+                    view.addDetachListener(detachEvent -> {
+                        detachEvent.unregisterListener();
+                        registration.remove();
+                    });
+                }));
+    }
+
+    public static Registration bindNavigationParameters(Component view,
+                                                        Signal<RouteParameters> routeSignal, SerializableConsumer<RouteParameters> routeWriteCallback,
+                                                        Signal<QueryParameters> querySignal, SerializableConsumer<QueryParameters> queryWriteCallback) {
+        return Registration.combine(Signal.effect(view, () -> {
+                    var routeParameters = routeSignal.get();
+                    var queryParameters = querySignal.get();
+                    view.getUI().ifPresent(ui -> ui.navigate(view.getClass(), routeParameters, queryParameters));
+                }),
+                view.addAttachListener(attachEvent -> {
+                    var registration = attachEvent.getUI().addAfterNavigationListener(afterNavigationEvent -> {
+                        routeWriteCallback.accept(afterNavigationEvent.getRouteParameters());
+                        queryWriteCallback.accept(afterNavigationEvent.getLocation().getQueryParameters());
+                    });
                     view.addDetachListener(detachEvent -> {
                         detachEvent.unregisterListener();
                         registration.remove();
