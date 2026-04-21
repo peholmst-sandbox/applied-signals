@@ -130,6 +130,20 @@ public final class SignalUtil {
                 }));
     }
 
+    public static Registration bindQueryParameters(Component view, Signal<QueryParameters> signal, SerializableConsumer<QueryParameters> writeCallback) {
+        return Registration.combine(Signal.effect(view, () -> {
+                    var queryParameters = signal.get();
+                    view.getUI().ifPresent(ui -> ui.navigate(view.getClass(), queryParameters));
+                }),
+                view.addAttachListener(attachEvent -> {
+                    var registration = attachEvent.getUI().addAfterNavigationListener(afterNavigationEvent -> writeCallback.accept(afterNavigationEvent.getLocation().getQueryParameters()));
+                    view.addDetachListener(detachEvent -> {
+                        detachEvent.unregisterListener();
+                        registration.remove();
+                    });
+                }));
+    }
+
     /**
      * Creates a two-way binding between signals of {@link RouteParameters} and
      * {@link QueryParameters} and the browser URL of the given view. When either signal value
