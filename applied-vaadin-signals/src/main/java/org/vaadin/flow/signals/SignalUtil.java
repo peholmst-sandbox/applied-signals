@@ -130,6 +130,41 @@ public final class SignalUtil {
                 }));
     }
 
+    /**
+     * Creates a two-way binding between a {@link Signal} of {@link QueryParameters} and the
+     * browser URL of the given view. When the signal value changes, the browser navigates to the
+     * URL corresponding to the new query parameters. When the user navigates (e.g. via the
+     * address bar or browser history), the updated query parameters are passed to
+     * {@code writeCallback}.
+     *
+     * <p>This method only tracks and writes query parameters; route parameters are not
+     * preserved across navigations triggered by signal changes. To bind both route and query
+     * parameters together, use
+     * {@link #bindNavigationParameters(Component, Signal, SerializableConsumer, Signal,
+     * SerializableConsumer)}.
+     *
+     * <p>The returned {@link Registration} removes both the navigation effect and the
+     * after-navigation listener when called.
+     *
+     * <p>Example usage with a {@link com.vaadin.flow.signals.local.ValueSignal}:
+     * <pre>{@code
+     * @Route("items")
+     * class ItemsView extends VerticalLayout {
+     *     ItemsView() {
+     *         var queryParams = new ValueSignal<QueryParameters>(QueryParameters.empty());
+     *         SignalUtil.bindQueryParameters(this, queryParams, queryParams::set);
+     *
+     *         var sort = new QueryParamSignal("sort", queryParams, queryParams::set);
+     *         // ...
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param view          the routed view component that owns the binding
+     * @param signal        the signal holding the current query parameters
+     * @param writeCallback the callback invoked with new query parameters after each navigation
+     * @return a registration that removes the binding when called
+     */
     public static Registration bindQueryParameters(Component view, Signal<QueryParameters> signal, SerializableConsumer<QueryParameters> writeCallback) {
         return Registration.combine(Signal.effect(view, () -> {
                     var queryParameters = signal.get();
