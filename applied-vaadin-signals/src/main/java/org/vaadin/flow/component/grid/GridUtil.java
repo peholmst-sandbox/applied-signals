@@ -2,7 +2,6 @@ package org.vaadin.flow.component.grid;
 
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
-import com.vaadin.flow.data.provider.QuerySortOrder;
 import com.vaadin.flow.function.SerializableConsumer;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.signals.Signal;
@@ -56,8 +55,6 @@ public final class GridUtil {
                     var sortOrders = signal.get();
                     grid.sort(sortOrders);
                 }),
-                grid.addSortListener(event -> {
-                    writeCallback.accept(event.getSortOrder());
-                }));
+                grid.addSortListener(event -> writeCallback.accept(event.getSortOrder())));
     }
 }

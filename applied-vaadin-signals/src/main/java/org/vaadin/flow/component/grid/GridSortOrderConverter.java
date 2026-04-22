@@ -5,7 +5,6 @@ import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.data.binder.Result;
 import com.vaadin.flow.data.binder.ValueContext;
 import com.vaadin.flow.data.converter.Converter;
-import com.vaadin.flow.data.provider.QuerySortOrder;
 import com.vaadin.flow.data.provider.SortDirection;
 import org.jspecify.annotations.NullMarked;
 
@@ -27,42 +26,42 @@ public class GridSortOrderConverter<T> implements Converter<List<String>, List<G
             return Result.ok(List.of());
         }
         try {
-            return Result.ok(value.stream().map(s -> toGridSortOrder(toQuerySortOrder(s))).toList());
+            var result = value.stream().map(this::toGridSortOrder).toList();
+            return Result.ok(result);
         } catch (IllegalArgumentException e) {
             return Result.error(e.getMessage());
         }
     }
 
-    private GridSortOrder<T> toGridSortOrder(QuerySortOrder sortOrder) {
-        var column = grid.getColumnByKey(sortOrder.getSorted());
+    private GridSortOrder<T> toGridSortOrder(String s) {
+        var separator = s.lastIndexOf(SEPARATOR);
+        var key = s.substring(0, separator);
+        var direction = s.substring(separator + 1);
+        var column = grid.getColumnByKey(key);
         if (column == null) {
-            throw new IllegalArgumentException("Unknown column: " + sortOrder.getSorted());
+            throw new IllegalArgumentException("Unknown column: " + key);
         }
-        return new GridSortOrder<>(column, sortOrder.getDirection());
+        if (SortDirection.ASCENDING.getShortName().equals(direction)) {
+            return new GridSortOrder<>(column, SortDirection.ASCENDING);
+        } else if (SortDirection.DESCENDING.getShortName().equals(direction)) {
+            return new GridSortOrder<>(column, SortDirection.DESCENDING);
+        } else {
+            throw new IllegalArgumentException("Unknown sort direction: " + direction);
+        }
     }
 
     @Override
     public List<String> convertToPresentation(List<GridSortOrder<T>> value, ValueContext context) {
         return value.stream()
-                .flatMap(so -> so.getSorted().getSortOrder(so.getDirection()))
-                .map(GridSortOrderConverter::toString)
+                .map(this::toString)
                 .toList();
     }
 
-    private static String toString(QuerySortOrder order) {
-        return order.getSorted() + SEPARATOR + order.getDirection().getShortName();
-    }
-
-    private static QuerySortOrder toQuerySortOrder(String s) {
-        var separator = s.lastIndexOf(SEPARATOR);
-        var key = s.substring(0, separator);
-        var direction = s.substring(separator + 1);
-        if (SortDirection.ASCENDING.getShortName().equals(direction)) {
-            return new QuerySortOrder(key, SortDirection.ASCENDING);
-        } else if (SortDirection.DESCENDING.getShortName().equals(direction)) {
-            return new QuerySortOrder(key, SortDirection.DESCENDING);
-        } else {
-            throw new IllegalArgumentException("Unknown sort direction: " + direction);
+    private String toString(GridSortOrder<T> order) {
+        var key = order.getSorted().getKey();
+        if (key == null) {
+            throw new IllegalStateException("Column " + order.getSorted() + " does not have a key. Use the setKey() method to specify one.");
         }
+        return order.getSorted().getKey() + SEPARATOR + order.getDirection().getShortName();
     }
 }

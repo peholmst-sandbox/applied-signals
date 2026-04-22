@@ -2,6 +2,7 @@ package com.example.application.sorting;
 
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.data.provider.DataProvider;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.signals.local.ValueSignal;
@@ -12,16 +13,17 @@ import org.vaadin.flow.signals.SignalUtil;
 
 import java.util.List;
 
-@Route("sorting/in-memory")
-class InMemorySortingView extends VerticalLayout {
+@Route("sorting/backend")
+class BackendSortingView extends VerticalLayout {
 
-    InMemorySortingView(SortingBackendService sortingBackendService) {
+    BackendSortingView(SortingBackendService sortingBackendService) {
         var grid = new Grid<Product>();
         grid.setSelectionMode(Grid.SelectionMode.NONE);
-        grid.addColumn(Product::name).setHeader("Name").setKey("name").setSortable(true);
-        grid.addColumn(Product::price).setHeader("Price").setKey("price").setSortable(true);
-        grid.addColumn(Product::category).setHeader("Category").setKey("category").setSortable(true);
-        grid.setItems(sortingBackendService.getAllProducts());
+        // You must set a key to bind sorting to a query parameter
+        grid.addColumn(Product::name).setHeader("Name").setSortProperty("name").setKey("name");
+        grid.addColumn(Product::price).setHeader("Price").setSortProperty("price").setKey("price");
+        grid.addColumn(Product::category).setHeader("Category").setSortProperty("category").setKey("category");
+        grid.setItems(DataProvider.fromCallbacks(sortingBackendService::fetch, sortingBackendService::count));
 
         // TODO Is it possible to simplify this with some utility methods or abstractions?
         var queryParams = new ValueSignal<>(QueryParameters.empty());
