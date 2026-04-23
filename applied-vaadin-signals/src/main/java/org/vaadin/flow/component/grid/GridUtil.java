@@ -2,7 +2,11 @@ package org.vaadin.flow.component.grid;
 
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
+import com.vaadin.flow.data.binder.Result;
+import com.vaadin.flow.data.binder.ValueContext;
+import com.vaadin.flow.data.converter.Converter;
 import com.vaadin.flow.function.SerializableConsumer;
+import com.vaadin.flow.function.SerializableFunction;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.signals.Signal;
 import org.jspecify.annotations.NullMarked;
@@ -10,6 +14,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Utility methods for binding {@link Signal} instances to {@link Grid} components.
@@ -56,5 +61,24 @@ public final class GridUtil {
                     grid.sort(sortOrders);
                 }),
                 grid.addSortListener(event -> writeCallback.accept(event.getSortOrder())));
+    }
+
+    public static <ID, T> Converter<@Nullable ID, @Nullable T> idToSelectionConverter(SerializableFunction<T, ID> toId, SerializableFunction<ID, Optional<T>> fromId) {
+        return new Converter<>() {
+
+            @Override
+            public Result<@Nullable T> convertToModel(@Nullable ID value, ValueContext context) {
+                try {
+                    return value == null ? Result.ok(null) : Result.ok(fromId.apply(value).orElse(null));
+                } catch (Exception e) {
+                    return Result.error(e.getMessage());
+                }
+            }
+
+            @Override
+            public @Nullable ID convertToPresentation(@Nullable T value, ValueContext context) {
+                return value == null ? null : toId.apply(value);
+            }
+        };
     }
 }
